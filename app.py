@@ -15,11 +15,6 @@ load_dotenv()
 # Get API keys
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-
-# Set environment variables
-os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-
 # Initialize Flask app
 app = Flask(__name__)
 
