@@ -1,10 +1,4 @@
 from flask import Flask, render_template, request
-from src.helper import download_hugging_face_embeddings
-from langchain_pinecone import PineconeVectorStore
-from langchain_groq import ChatGroq
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 from src.prompt import system_prompt
 import os
@@ -28,6 +22,13 @@ def get_rag_chain():
     if rag_chain is None:
         with rag_chain_lock:
             if rag_chain is None:
+                from src.helper import download_hugging_face_embeddings
+                from langchain_pinecone import PineconeVectorStore
+                from langchain_groq import ChatGroq
+                from langchain.chains import create_retrieval_chain
+                from langchain.chains.combine_documents import create_stuff_documents_chain
+                from langchain_core.prompts import ChatPromptTemplate
+
                 embeddings = download_hugging_face_embeddings()
                 docsearch = PineconeVectorStore.from_existing_index(
                     index_name="medical-chatbot",
