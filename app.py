@@ -8,6 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 from src.prompt import system_prompt
 import os
+from threading import Lock
 
 # Load environment variables
 load_dotenv()
@@ -15,51 +16,47 @@ load_dotenv()
 # Get API keys
 PINECONE_API_KEY = os.environ.get("PINECONE_API_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-# Initialize Flask app
 app = Flask(__name__)
 
-# Load embeddings
-embeddings = download_hugging_face_embeddings()
+rag_chain = None
+rag_chain_lock = Lock()
 
-# Pinecone index name
-index_name = "medical-chatbot"
 
-# Connect to existing Pinecone index
-docsearch = PineconeVectorStore.from_existing_index(
-    index_name=index_name,
-    embedding=embeddings
-)
+def get_rag_chain():
+    global rag_chain
 
-# Create retriever
-retriever = docsearch.as_retriever(
-    search_type="similarity",
-    search_kwargs={"k": 3}
-)
+    if rag_chain is None:
+        with rag_chain_lock:
+            if rag_chain is None:
+                embeddings = download_hugging_face_embeddings()
+                docsearch = PineconeVectorStore.from_existing_index(
+                    index_name="medical-chatbot",
+                    embedding=embeddings
+                )
+                retriever = docsearch.as_retriever(
+                    search_type="similarity",
+                    search_kwargs={"k": 3}
+                )
+                chatModel = ChatGroq(
+                    groq_api_key=GROQ_API_KEY,
+                    model_name="openai/gpt-oss-20b"
+                )
+                prompt = ChatPromptTemplate.from_messages(
+                    [
+                        ("system", system_prompt),
+                        ("human", "{input}"),
+                    ]
+                )
+                question_answer_chain = create_stuff_documents_chain(
+                    chatModel,
+                    prompt
+                )
+                rag_chain = create_retrieval_chain(
+                    retriever,
+                    question_answer_chain
+                )
 
-# Initialize Groq model
-chatModel = ChatGroq(
-    groq_api_key=GROQ_API_KEY,
-    model_name="openai/gpt-oss-20b"
-)
-
-# Create prompt template
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", system_prompt),
-        ("human", "{input}"),
-    ]
-)
-
-# Create RAG chain
-question_answer_chain = create_stuff_documents_chain(
-    chatModel,
-    prompt
-)
-
-rag_chain = create_retrieval_chain(
-    retriever,
-    question_answer_chain
-)
+    return rag_chain
 
 # Home route
 @app.route("/")
@@ -73,7 +70,7 @@ def chat():
 
     print("User Input:", msg)
 
-    response = rag_chain.invoke({
+    response = get_rag_chain().invoke({
         "input": msg
     })
 
